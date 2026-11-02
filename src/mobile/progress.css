@@ -1,0 +1,1 @@
+.native-progress{display:block;appearance:none;-webkit-appearance:none;width:100%;height:3px;border:0;border-radius:3px;margin-top:9px;background:#f1f3ed;overflow:hidden}.native-progress::-webkit-progress-bar{background:#f1f3ed}.native-progress::-webkit-progress-value{background:#8dac75}.native-progress::-moz-progress-bar{background:#8dac75}

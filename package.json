@@ -1,0 +1,63 @@
+{
+  "name": "lane-local-transfer",
+  "version": "0.10.0",
+  "description": "Your files. Your network. A private, local file inbox for Windows.",
+  "private": true,
+  "author": "Lane",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "assets": "node scripts/build-assets.cjs",
+    "prestart": "npm run assets",
+    "prebuild": "npm run assets",
+    "prebuild:dir": "npm run assets",
+    "build": "electron-builder --win nsis portable --x64",
+    "build:dir": "electron-builder --win --dir --x64"
+  },
+  "dependencies": {
+    "@peculiar/x509": "2.1.0",
+    "bonjour-service": "1.4.4",
+    "qrcode": "1.5.4",
+    "reflect-metadata": "0.2.2"
+  },
+  "devDependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2"
+  },
+  "build": {
+    "appId": "local.lane.transfer",
+    "productName": "Lane",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "Lane-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Lane-Portable-${version}.${ext}"
+    }
+  }
+}

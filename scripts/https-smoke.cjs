@@ -1,0 +1,92 @@
+const path=require('node:path');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
+const {_electron,chromium}=require('playwright');
+async function main(){
+  const root=path.resolve(__dirname,'..'),temp=await fs.mkdtemp(path.join(os.tmpdir(),'lane-https-ui-')),output=path.join(root,'test-output');
+  let app,browser;
+  try{
+    app=await _electron.launch({executablePath:process.env.LANE_APP_EXE || require('electron'),args:process.env.LANE_APP_EXE ? [] : [root],env:{...process.env,LANE_TEST:'1',LANE_TEST_HTTPS:'1',LANE_DATA_DIR:path.join(temp,'state'),LANE_TEST_FOLDER:path.join(temp,'files'),LANE_PORT:'0'},timeout:60000});
+    const desktop=await app.firstWindow(),errors=[];desktop.on('pageerror',e=>errors.push(e.message));
+    assert.equal(await app.evaluate(({safeStorage})=>{if(!safeStorage.isEncryptionAvailable())return false;const value='isolated Windows protection check';return safeStorage.decryptString(safeStorage.encryptString(value))===value;}),true,'Windows private-key protection works');
+    await desktop.getByRole('heading',{name:'Transfers',exact:true}).waitFor();
+    const original=await desktop.evaluate(()=>window.lane.snapshot());assert.equal(original.transport.httpsOnly,true);assert.equal(original.transport.available,true);
+    const address=original.addresses.find(a=>a.address.startsWith('192.168.') || a.address.startsWith('10.')) || original.addresses[0];assert.ok(address);
+    const secure=address.secureUrl,ordinary=`http://${address.address}:${original.port}`;
+    const tls=JSON.parse(JSON.parse(await fs.readFile(path.join(temp,'state','tls','identity.json'),'utf8')).local);
+    const spki=crypto.createHash('sha256').update(new crypto.X509Certificate(tls.leaf).publicKey.export({type:'spki',format:'der'})).digest('base64');
+    // Trust only this isolated test certificate, without changing the Windows trust store.
+    browser=await chromium.launch({channel:'msedge',headless:true,args:['--ignore-certificate-errors-spki-list='+spki]});
+    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1'});
+    const phone=await context.newPage();phone.on('pageerror',e=>errors.push(e.message));
+    await phone.addInitScript(()=>{
+      window.wakeChecks={requested:0,released:0};
+      Object.defineProperty(navigator,'wakeLock',{configurable:true,value:{request:async()=>{
+        window.wakeChecks.requested++;const lock=new EventTarget();lock.released=false;lock.release=async()=>{if(!lock.released){lock.released=true;window.wakeChecks.released++;lock.dispatchEvent(new Event('release'));}};return lock;
+      }}});
+    });
+    await phone.goto(ordinary+'/setup');await phone.getByRole('heading',{name:'A secure connection.A one-time setup.'}).count();assert.ok((await phone.locator('body').innerText()).includes(original.transport.fingerprint));
+    await phone.getByRole('link',{name:'Open Lane over HTTPS ↗'}).click();await phone.getByRole('button',{name:'Connect device'}).waitFor();assert.equal(new URL(phone.url()).origin,secure);
+    await desktop.evaluate(()=>window.lane.settings({httpsOnly:false}));
+    const pairing=await desktop.evaluate(()=>window.lane.pair());
+    await phone.goto(ordinary+'/#code='+pairing.code);await phone.getByLabel('Your device name').fill('Secure iPhone');await phone.getByRole('button',{name:'Connect device'}).click();await phone.locator('#sender-section').waitFor();
+    const before=await desktop.evaluate(()=>window.lane.snapshot());const id=before.devices[0].id;assert.equal(before.devices[0].profile.kind,'phone');
+    await desktop.locator('.nav-item[data-view="messages"]').click();await desktop.getByLabel('Message',{exact:true}).fill('Keep this note through HTTPS migration 🔐');await desktop.getByRole('button',{name:/Send message/}).click();
+    await phone.getByRole('tab',{name:/Messages/}).click();await phone.locator('.chat-message.theirs').filter({hasText:'HTTPS migration'}).waitFor();
+    await phone.locator('.chat-input').fill('My unsent draft 😊');
+    await phone.getByRole('button',{name:'Settings',exact:true}).click();await phone.getByRole('button',{name:'Save encrypted backup',exact:true}).click();
+    const backupDialog=phone.getByRole('dialog',{name:'Save encrypted backup'});const password='a long local test password';await backupDialog.getByLabel('Password',{exact:true}).fill(password);await backupDialog.getByLabel('Confirm password').fill(password);
+    const [download]=await Promise.all([phone.waitForEvent('download'),backupDialog.getByRole('button',{name:'Save encrypted backup',exact:true}).click()]);const backup=path.join(temp,'identity.lane-backup');await download.saveAs(backup);assert.ok(!(await fs.readFile(backup,'utf8')).includes('My unsent draft'));
+    await phone.goto(secure);assert.equal(await phone.evaluate(()=>isSecureContext && Boolean(crypto.subtle)),true);
+    await phone.getByRole('button',{name:'Settings',exact:true}).click();await phone.getByRole('button',{name:'How to add Lane',exact:true}).click();await phone.getByRole('dialog',{name:'Keep Lane close'}).waitFor();
+    assert.equal(await phone.locator('#home-screen-address').textContent(),secure+'/');await phone.screenshot({path:path.join(output,'phone-home-screen-guide.png')});await phone.getByRole('button',{name:'Close Home Screen guide'}).click();
+    await phone.getByRole('button',{name:'← Back',exact:true}).click();
+    await phone.getByRole('button',{name:'Already paired? Restore an encrypted backup'}).click();const restore=phone.getByRole('dialog',{name:'Restore encrypted backup'});await restore.locator('[type=file]').setInputFiles(backup);await restore.getByLabel('Password',{exact:true}).fill(password);await restore.getByRole('button',{name:'Restore this backup'}).click();
+    await phone.locator('#sender-section').waitFor();await phone.getByRole('tab',{name:/Messages/}).click();await phone.locator('.chat-message.theirs').filter({hasText:'HTTPS migration'}).waitFor();assert.equal(await phone.locator('.chat-input').inputValue(),'My unsent draft 😊');
+    assert.equal((await desktop.evaluate(()=>window.lane.snapshot())).devices.length,1,'Migration preserves one identity');
+    await desktop.evaluate(()=>window.lane.settings({httpsOnly:true}));assert.equal((await fetch(ordinary+'/api/info')).status,426);
+    await phone.locator('.chat-input').fill('Reply over HTTPS ❤️');await phone.getByRole('button',{name:/Send message/}).click();await desktop.locator('.chat-message.theirs').filter({hasText:'Reply over HTTPS'}).waitFor();
+    const payload=crypto.randomBytes(4*1024*1024+131);await phone.getByRole('tab',{name:/Send files/}).click();await phone.locator('#file-input').setInputFiles({name:'secure-transfer.bin',mimeType:'application/octet-stream',buffer:payload});await phone.locator('#send-selected').click();await phone.locator('#upload-result').filter({hasText:'Sent — 1 file'}).waitFor();assert.deepEqual(await fs.readFile(path.join(temp,'files','secure-transfer.bin')),payload);
+    await phone.waitForFunction(()=>window.wakeChecks.requested>0 && window.wakeChecks.requested===window.wakeChecks.released);
+    await phone.getByRole('button',{name:'Settings',exact:true}).click();await phone.getByLabel('Keep the screen awake while uploading').uncheck();
+    const requests=await phone.evaluate(()=>window.wakeChecks.requested);await phone.getByRole('button',{name:'← Back',exact:true}).click();
+    await phone.locator('#file-input').setInputFiles({name:'no-wake.txt',mimeType:'text/plain',buffer:Buffer.from('Explicitly disabled')});await phone.locator('#send-selected').click();await phone.locator('#queue .queue-row').filter({hasText:'no-wake.txt'}).locator('.file-meta').filter({hasText:'Sent · Saved to computer'}).waitFor();
+    assert.equal(await phone.evaluate(()=>window.wakeChecks.requested),requests);
+    await phone.getByRole('button',{name:'Settings',exact:true}).click();await phone.screenshot({path:path.join(output,'phone-web-app-settings.png'),fullPage:true});await phone.getByRole('button',{name:'← Back',exact:true}).click();
+    // Exercise the new workflow through the real renderer and native picker boundary.
+    const projectFolder=path.join(temp,'project');
+    await app.evaluate(({dialog},folder)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[folder]});},projectFolder);
+    await desktop.locator('[data-view="settings"]').click();await desktop.getByLabel('Destination name',{exact:true}).fill('Studio work');await desktop.getByRole('button',{name:'Choose folder & add'}).click();
+    await desktop.locator('.destination-row').filter({hasText:'Studio work'}).waitFor();
+    await phone.waitForFunction(()=>Array.from(document.querySelector('#file-destination').options).some(o=>o.textContent==='Studio work'));
+    const destinationId=await phone.locator('#file-destination option').filter({hasText:'Studio work'}).getAttribute('value');
+    await phone.locator('#file-input').setInputFiles({name:'project-note.txt',mimeType:'text/plain',buffer:Buffer.from('project bytes')});await phone.getByLabel('Save in',{exact:true}).selectOption(destinationId);await phone.locator('#send-selected').click();
+    await phone.locator('#upload-result').filter({hasText:'Studio work'}).filter({hasText:'Sent — 1 file'}).waitFor();assert.equal(await fs.readFile(path.join(projectFolder,'project-note.txt'),'utf8'),'project bytes');
+    await desktop.getByRole('button',{name:'Run connection check'}).click();await desktop.locator('.connection-feedback').filter({hasText:'Receiver is responding'}).waitFor();
+    const desktopReport=JSON.parse(await desktop.locator('.connection-report pre').textContent());assert.equal(desktopReport.client,'Windows');assert.ok(!JSON.stringify(desktopReport).includes(projectFolder));
+    const desktopReportFile=path.join(temp,'desktop-report.json');await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},desktopReportFile);await desktop.getByText('Preview diagnostic report',{exact:true}).click();await desktop.getByRole('button',{name:'Save report',exact:true}).click();
+    let exportedDesktop;for(let attempt=0;attempt<30;attempt++){try{exportedDesktop=JSON.parse(await fs.readFile(desktopReportFile,'utf8'));break;}catch{await new Promise(resolve=>setTimeout(resolve,100));}}assert.deepEqual(exportedDesktop,desktopReport,await desktop.locator('.connection-feedback').textContent());
+    await desktop.screenshot({path:path.join(output,'desktop-workflow-settings.png'),fullPage:true});
+    await phone.getByRole('button',{name:'Settings',exact:true}).click();await phone.getByRole('button',{name:'Run connection check'}).click();await phone.locator('.connection-feedback').filter({hasText:'Receiver is responding'}).waitFor();
+    const report=JSON.parse(await phone.locator('.connection-report pre').textContent());assert.equal(report.paired,true);assert.equal(report.https,true);assert.ok(!JSON.stringify(report).includes(original.receiverId));
+    await phone.getByText('Preview diagnostic report',{exact:true}).click();const [reportDownload]=await Promise.all([phone.waitForEvent('download'),phone.getByRole('button',{name:'Save report',exact:true}).click()]);const reportFile=path.join(temp,'report.json');await reportDownload.saveAs(reportFile);assert.deepEqual(JSON.parse(await fs.readFile(reportFile,'utf8')),report);
+    await phone.screenshot({path:path.join(output,'phone-connection-check.png'),fullPage:true});await phone.getByRole('button',{name:'← Back',exact:true}).click();
+    await phone.getByRole('tab',{name:/Messages/}).click();await phone.getByRole('button',{name:'Search conversation',exact:true}).click();await phone.locator('.chat-search').fill('HTTPS migration');assert.equal(await phone.locator('.chat-message:visible').count(),1);await phone.locator('.chat-search').fill('not-present-98453');assert.equal(await phone.locator('.chat-message:visible').count(),0);await phone.getByRole('button',{name:'Search conversation',exact:true}).click();
+    await phone.getByRole('button',{name:'Mute alerts',exact:true}).click();await phone.getByRole('tab',{name:/Send files/}).click();
+    await phone.evaluate(()=>{window.soundCalls=0;localStorage.setItem('lane-message-sound','true');window.LaneSound.play=async()=>{window.soundCalls++;return true;};});
+    await desktop.locator('.nav-item[data-view="messages"]').click();await desktop.getByLabel('Message',{exact:true}).fill('Quiet muted conversation');await desktop.getByRole('button',{name:/Send message/}).click();await desktop.locator('.chat-message.mine:not(.pending)').filter({hasText:'Quiet muted conversation'}).waitFor();await phone.waitForFunction(async()=>{await health();const device=await api('/api/device');return messageSequence>=Math.max(...device.messageEvents.map(m=>m.seq));});assert.equal(await phone.evaluate(()=>window.soundCalls),0);
+    await phone.getByRole('tab',{name:/Messages/}).click();await phone.getByRole('button',{name:'Unmute alerts',exact:true}).click();await phone.getByRole('tab',{name:/Send files/}).click();await desktop.getByLabel('Message',{exact:true}).fill('Audible unmuted conversation');await desktop.getByRole('button',{name:/Send message/}).click();await phone.waitForFunction(()=>window.soundCalls>0);
+    await desktop.getByRole('button',{name:'Mute alerts',exact:true}).click();assert.ok((await desktop.evaluate(()=>window.lane.snapshot())).mutedConversations.includes(id));await desktop.getByRole('button',{name:'Unmute alerts',exact:true}).click();
+    await phone.evaluate(()=>{document.activeElement.blur();const data=new DataTransfer();data.items.add(new File(['pasted bytes'],'pasted.txt',{type:'text/plain'}));document.body.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,clipboardData:data}));});await phone.locator('#selection-files').filter({hasText:'pasted.txt'}).waitFor();assert.equal(await phone.locator('#selection-files .selection-file').filter({hasText:'pasted.txt'}).count(),1);assert.equal(await fs.access(path.join(projectFolder,'pasted.txt')).then(()=>true,()=>false),false,'Paste requires explicit send');
+    await phone.locator('#send-selected').click();await phone.locator('#queue .queue-row').filter({hasText:'pasted.txt'}).locator('.file-action.done').waitFor();assert.equal(await fs.readFile(path.join(projectFolder,'pasted.txt'),'utf8'),'pasted bytes');
+    await phone.getByRole('tab',{name:/Devices/}).click();await phone.screenshot({path:path.join(output,'phone-discover-https.png'),fullPage:true});assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await desktop.locator('[data-view="devices"]').click();await desktop.locator('.discover-device').filter({hasText:'Secure iPhone'}).click();await desktop.screenshot({path:path.join(output,'desktop-device-details.png')});await desktop.getByRole('button',{name:'Close device details'}).click();
+    await desktop.locator('[data-view="settings"]').click();await desktop.locator('#secure-settings').scrollIntoViewIfNeeded();await desktop.screenshot({path:path.join(output,'desktop-https-settings.png')});
+    await desktop.getByRole('button',{name:'Set up a phone / browser'}).click();await desktop.locator('.secure-qr').waitFor();await desktop.screenshot({path:path.join(output,'desktop-https-setup.png')});await desktop.getByRole('dialog',{name:'Set up HTTPS'}).getByRole('button',{name:'Close',exact:true}).click();
+    assert.equal((await desktop.evaluate(()=>window.lane.snapshot())).devices[0].id,id);assert.deepEqual(errors,[]);
+    console.log(JSON.stringify({passed:true,origin:secure,checks:['new installations require HTTPS','scoped test certificate trust','HTTP-to-HTTPS identity migration through encrypted backup','preserved pairing, keys, old notes and drafts','HTTP API blocked','HTTPS message and binary file transfer','Discover details and mobile layout','certificate fingerprint and setup QR','no renderer errors']},null,2));
+  }finally{await browser?.close();await app?.close();assert.ok(path.resolve(temp).startsWith(path.resolve(os.tmpdir())+path.sep) && path.basename(temp).startsWith('lane-https-ui-'));await fs.rm(temp,{recursive:true,force:true});}
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

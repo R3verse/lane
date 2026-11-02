@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "Lane · Local files & messages",
+  "short_name": "Lane",
+  "description": "Share files and messages with your devices on the same network.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101b20",
+  "theme_color": "#101b20",
+  "icons": [{"src":"/lane-icon.png","sizes":"512x512","type":"image/png","purpose":"any"}]
+}

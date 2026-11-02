@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+  <title>Lane · Local file transfer</title><link rel="stylesheet" href="../shared/discover.css"><link rel="stylesheet" href="desktop.css"><link rel="stylesheet" href="accessibility.css"><link rel="stylesheet" href="twoway.css"><link rel="stylesheet" href="../shared/chat.css"><link rel="stylesheet" href="../shared/theme.css"><script src="../shared/theme.js"></script>
+  <link rel="stylesheet" href="../shared/controls.css"><script src="../shared/connection-check.js"></script>
+</head>
+<body>
+  <div class="titlebar"><span class="titlebar-mark">↗</span> Lane <span class="titlebar-caption">LOCAL FILE TRANSFER</span><button class="theme-toggle titlebar-theme" data-action="toggle-theme" aria-label="Switch color theme" title="Switch color theme">☀️</button></div>
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">↗</div><span>lane<span class="brand-dot">.</span></span></div>
+    <div class="workspace-label">YOUR WORKSPACE</div>
+    <nav aria-label="Main navigation">
+      <button class="nav-item active" data-view="transfers"><span data-icon="transfer"></span>Transfers<span id="nav-count" class="nav-count">0</span></button>
+      <button class="nav-item" data-view="messages"><span data-icon="messages"></span>Messages<span id="message-count" class="nav-count messages-nav-count" hidden>0</span></button>
+      <button class="nav-item" data-view="devices"><span data-icon="devices"></span>Devices</button>
+      <button class="nav-item" data-view="settings"><span data-icon="settings"></span>Settings</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="local-card"><span class="tiny-light"></span><strong>A little closer.</strong><p>Your files stay on<br>your local network.</p><span class="local-label">NO CLOUD. NO ACCOUNT.</span></div>
+      <button class="help-button" data-action="help"><span data-icon="help"></span>Connection help<span>↗</span></button>
+      <div class="version">LANE FOR WINDOWS <span>v0.10</span></div>
+    </div>
+  </aside>
+  <main><div id="requests" aria-live="polite"></div><div id="content"></div></main>
+  <dialog id="pair-dialog" aria-labelledby="pair-title"><div id="pair-content"></div></dialog>
+  <dialog id="send-dialog" aria-labelledby="send-title"><div id="send-content"></div></dialog>
+  <div id="connected-notice" class="connected-notice" role="status" hidden></div>
+  <dialog id="help-dialog" aria-labelledby="help-title"><button class="dialog-close" data-action="close-help" aria-label="Close">×</button><span class="eyebrow">A QUICK CONNECTION CHECK</span><h2 id="help-title">Let's get you connected.</h2><ol class="help-list"><li><strong>Use the same home or office network.</strong><p>Your computer can use Ethernet and your phone can use Wi-Fi. Guest Wi-Fi may keep devices apart.</p></li><li><strong>Allow Lane on private networks.</strong><p>If Windows Firewall asks, allow Lane on Private networks. On a managed computer, your IT administrator may need to allow incoming TCP ports 47831 (setup) and 47832 (HTTPS).</p></li><li><strong>Keep Lane running and the computer awake.</strong><p>You can close this window to the system tray. Files wait on your phone if the receiver is unavailable.</p></li><li><strong>Scan a fresh QR code if the address changed.</strong><p>The browser remembers this computer at its local address. Private browsing, cleared site data or a new IP address may require pairing again.</p></li></ol><div class="note">Use Settings → Secure connection to install and verify this computer’s certificate, then connect over HTTPS. Keep the phone’s page open until each transfer finishes.</div></dialog>
+  <div id="toast" role="status"></div>
+  <script src="../shared/message-format.js"></script><script src="../shared/crypto-vendor.js"></script><script src="../shared/sound.js"></script><script src="../shared/crypto-identity.js"></script><script src="../shared/chat.js"></script><script src="messages.js"></script><script src="../shared/discover.js"></script><script src="../shared/recovery.js"></script><script src="secure-settings.js"></script><script src="desktop.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const https=require('node:https');
+const http=require('node:http');
+const crypto=require('node:crypto');
+const {Receiver}=require('../src/server.cjs');
+function request(receiver,route,options={}) {
+  return new Promise((resolve,reject)=>{const req=https.request({hostname:'127.0.0.1',port:receiver.tlsPort,path:route,ca:receiver.tls.bundle.root,...options},res=>{const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:Buffer.concat(chunks).toString()}));});req.on('error',reject);req.end(options.body);});
+}
+test('verified HTTPS protects the app, pairing and files; HTTP cannot bypass HTTPS-only mode',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'lane-tls-'));
+  const options={dataDir:dir,defaultFolder:path.join(dir,'inbox'),host:'127.0.0.1',port:0,tlsPort:0,tls:true};
+  let receiver=new Receiver(options);
+  try{
+    await receiver.start();
+    await assert.rejects(request(receiver,'/',{ca:undefined}),/certificate/);
+    assert.equal((await request(receiver,'/')).status,200);
+    assert.match((await request(receiver,'/api/info')).text,/"secure":true/);
+    const manifestResponse=await request(receiver,'/manifest.webmanifest');assert.equal(manifestResponse.headers['content-type'],'application/manifest+json');
+    const manifest=JSON.parse(manifestResponse.text);assert.equal(manifest.start_url,'/');assert.equal(manifest.id,'/');assert.equal(manifest.display,'standalone');assert.equal(manifest.icons[0].sizes,'512x512');assert.ok(!manifestResponse.text.includes(receiver.state.receiverId));
+    assert.equal((await request(receiver,manifest.icons[0].src)).headers['content-type'],'image/png');
+    assert.equal((await request(receiver,'/web-app.js')).status,200);
+    const ordinary=`http://127.0.0.1:${receiver.port}`;
+    for(const route of ['/api/info','/mobile.js','/api/device','/download/nope','/manifest.webmanifest','/lane-icon.png','/web-app.js'])assert.equal((await fetch(ordinary+route)).status,426);
+    const setup=await (await fetch(ordinary+'/setup')).text();assert.match(setup,/Certificate Trust Settings/);assert.ok(setup.includes(receiver.tls.fingerprint));
+    const cert=Buffer.from(await (await fetch(ordinary+'/lane-root.cer')).arrayBuffer());assert.equal(new crypto.X509Certificate(cert).fingerprint256,receiver.tls.fingerprint);
+    assert.equal((await request(receiver,'/api/info',{headers:{Origin:ordinary}})).status,403);
+    const navigation={'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document',Origin:ordinary};
+    for(const route of ['/','/setup','/lane-root.cer'])assert.equal((await request(receiver,route,{headers:navigation})).status,200,'Public navigation '+route);
+    for(const route of ['/api/info','/api/device','/api/messages','/mobile.js','/download/nope'])assert.equal((await request(receiver,route,{headers:navigation})).status,403,'Navigation must not bypass private routes '+route);
+    assert.equal((await request(receiver,'/',{headers:{...navigation,'Sec-Fetch-Dest':'iframe'}})).status,403);
+    assert.equal((await request(receiver,'/',{headers:{...navigation,'Sec-Fetch-Mode':'cors'}})).status,403);
+    assert.equal((await request(receiver,'/',{method:'POST',headers:navigation})).status,403);
+    assert.equal((await request(receiver,'/',{servername:'localhost',headers:{...navigation,Host:'evil.example:'+receiver.tlsPort}})).status,403);
+    const diagnostics=JSON.parse((await request(receiver,'/api/info')).text).certificate;
+    assert.equal(diagnostics.serverFingerprint,new crypto.X509Certificate(receiver.tls.bundle.leaf).fingerprint256);
+    assert.ok(new crypto.X509Certificate(receiver.tls.bundle.leaf).verify(new crypto.X509Certificate(receiver.tls.bundle.root).publicKey));
+    assert.equal((await request(receiver,'/api/info',{servername:'localhost',headers:{Host:'evil.example:'+receiver.tlsPort}})).status,403);
+    const code=receiver.openPairing().code;
+    const paired=await request(receiver,'/api/pair/request',{method:'POST',headers:{'User-Agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1 Safari/604.1'},body:JSON.stringify({code,name:'Phone'})});assert.equal(paired.status,201);
+    const headers={Authorization:'Bearer '+JSON.parse(paired.text).token};
+    const device=await request(receiver,'/api/device',{headers});assert.match(device.headers['set-cookie'][0],/; Secure/);assert.equal(receiver.state.devices[0].profile.kind,'phone');
+    const source=path.join(dir,'private.txt');await fs.writeFile(source,'secure file bytes');const [offer]=await receiver.outbox.enqueue(receiver.state.devices[0].id,[source]);
+    assert.equal((await request(receiver,'/download/'+offer.id,{headers})).text,'secure file bytes');
+    assert.equal((await fetch(ordinary+'/download/'+offer.id,{headers})).status,426);
+    for(const route of ['/tls/identity.json','/../tls/identity.json'])assert.notEqual((await request(receiver,route,{headers})).status,200);
+    const fingerprint=receiver.tls.fingerprint,leaf=receiver.tls.bundle.leaf;
+    assert.equal(await receiver.tls.refresh(['192.168.1.123']),true);const changed=new crypto.X509Certificate(receiver.tls.bundle.leaf);assert.equal(changed.checkIP('192.168.1.123'),'192.168.1.123');assert.notEqual(receiver.tls.bundle.leaf,leaf);assert.equal(receiver.tls.fingerprint,fingerprint);
+    await receiver.stop();receiver=new Receiver(options);await receiver.start();assert.equal(receiver.tls.fingerprint,fingerprint);assert.equal((await request(receiver,'/api/device',{headers})).status,200);
+    await receiver.updateSettings({httpsOnly:false});assert.equal((await fetch(`http://127.0.0.1:${receiver.port}/api/info`)).status,200);
+    const incoming=JSON.parse((await request(receiver,'/api/uploads',{method:'POST',headers,body:JSON.stringify({name:'upgrade.bin',size:100000,clientId:crypto.randomUUID()})})).text);
+    const active=http.request({hostname:'127.0.0.1',port:receiver.port,path:'/api/uploads/'+incoming.id,method:'PUT',headers:{...headers,'Content-Length':'100000','X-File-Offset':'0'}});
+    const disconnected=new Promise(resolve=>active.once('error',resolve));active.write(Buffer.alloc(20000,1));
+    for(let i=0;i<100 && !receiver.jobs.get(incoming.id).inflight;i++)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.ok(receiver.jobs.get(incoming.id).inflight>0);
+    await receiver.updateSettings({httpsOnly:true});await disconnected;
+    for(let i=0;i<100 && receiver.jobs.get(incoming.id).busy;i++)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(receiver.jobs.get(incoming.id).offset,0,'An open HTTP chunk is rolled back when HTTPS is required');
+    assert.equal((await fetch(`http://127.0.0.1:${receiver.port}/api/info`)).status,426);
+    assert.equal((await request(receiver,'/api/uploads/'+incoming.id,{method:'PUT',headers:{...headers,'Content-Length':'100000','X-File-Offset':'0'},body:Buffer.alloc(100000,2)})).status,200);
+  }finally{await receiver.stop();assert.ok(path.resolve(dir).startsWith(path.resolve(os.tmpdir())+path.sep) && path.basename(dir).startsWith('lane-tls-'));await fs.rm(dir,{recursive:true,force:true});}
+});
