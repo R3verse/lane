@@ -58,11 +58,23 @@ async function main() {
     await phone.locator('#send-selected').waitFor();
     await phone.waitForTimeout(6500);
     await phone.screenshot({ path: path.join(output, 'phone-file-review.png'), fullPage: true });
+    await phone.locator('#send-selected').click();
+    await phone.locator('#upload-result').filter({ hasText: 'Sent — 2 files' }).waitFor();
+    assert.equal(await fs.readFile(path.join(temp, 'files', 'Project notes.txt'), 'utf8'), 'Demo notes for the Lane showcase.\n');
+    await desktop.locator('.nav-item[data-view="transfers"]').click();
+    await desktop.getByText('Project notes.txt', { exact: true }).waitFor();
+    await phone.waitForTimeout(6500);
+    // Capture above the receiving-folder footer so the private temporary path is excluded.
+    const footer = await desktop.locator('.bottom-note').boundingBox();
+    const viewport = await desktop.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    await desktop.screenshot({ path: path.join(output, 'desktop-transfers.png'),
+      clip: { x: 0, y: 0, width: viewport.width, height: Math.floor(footer.y - 8) } });
+    await desktop.locator('.nav-item[data-view="messages"]').click();
     for (const page of [desktop, phone]) {
       const text = await page.locator('body').innerText();
       assert.ok(!/MAX-PC|192\.168\.|C:\\Users\\/i.test(text), 'Showcase must not expose machine data');
     }
-    console.log('Captured three showcase screenshots with synthetic content.');
+    console.log('Captured four showcase screenshots with synthetic content.');
   } finally {
     await browser?.close();
     await app?.close();

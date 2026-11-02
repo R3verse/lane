@@ -2,6 +2,7 @@
 
 Captured from the real Lane 0.10.0 interface on Windows, using an isolated test profile and synthetic messages/files. Device names are generic. Screenshots do not contain pairing codes, QR credentials, certificates, machine paths or network addresses.
 
+- `desktop-transfers.png`: completed phone-to-computer transfers. Captured above the receiving-folder footer to exclude the private temporary path.
 - `desktop-messages.png`: Electron desktop conversation, dark theme.
 - `phone-file-review.png`: mobile browser file selection, recipient and explicit Send review.
 - `phone-messages.png`: mobile browser encrypted conversation.

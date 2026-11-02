@@ -8,16 +8,24 @@ Source: [R3verse/lane](https://github.com/R3verse/lane). Download binaries are k
 
 ## A look inside Lane
 
-![Lane for Windows — encrypted conversation with a paired phone](docs/screenshots/desktop-messages.png)
+Click any screenshot to open it at full size.
 
 <table>
   <tr>
-    <th>Review files before sending</th>
-    <th>Keep the conversation close</th>
+    <th>File transfers on Windows</th>
+    <th>Messages on Windows</th>
   </tr>
   <tr>
-    <td valign="top"><img src="docs/screenshots/phone-file-review.png" alt="Mobile browser file review with an explicit Send button and recipient selection" width="320"></td>
-    <td valign="top"><img src="docs/screenshots/phone-messages.png" alt="Encrypted message from the Windows computer in Lane’s mobile browser interface" width="320"></td>
+    <td valign="top"><a href="docs/screenshots/desktop-transfers.png"><img src="docs/screenshots/desktop-transfers.png" alt="Lane Windows transfer history after receiving sample files from a phone" width="380"></a></td>
+    <td valign="top"><a href="docs/screenshots/desktop-messages.png"><img src="docs/screenshots/desktop-messages.png" alt="Lane Windows conversation with a paired phone" width="380"></a></td>
+  </tr>
+  <tr>
+    <th>Review files on your phone</th>
+    <th>Messages on your phone</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><a href="docs/screenshots/phone-file-review.png"><img src="docs/screenshots/phone-file-review.png" alt="Mobile file review with recipient selection and an explicit Send button" height="320"></a></td>
+    <td align="center" valign="top"><a href="docs/screenshots/phone-messages.png"><img src="docs/screenshots/phone-messages.png" alt="Encrypted conversation in Lane’s mobile browser interface" height="320"></a></td>
   </tr>
 </table>
 
