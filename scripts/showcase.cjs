@@ -37,6 +37,7 @@ async function main() {
     await phone.getByLabel('Your device name').fill('Studio phone');
     await phone.getByRole('button', { name: 'Connect device' }).click();
     await phone.locator('#sender-section').waitFor();
+    await phone.screenshot({ path: path.join(output, 'phone-pairing.png'), fullPage: true });
     await desktop.locator('.nav-item[data-view="messages"]').click();
     await desktop.getByLabel('Message', { exact: true }).fill('The photos are ready. Send your favourites here and I’ll keep them with the project. 📷');
     await desktop.getByRole('button', { name: /Send message/ }).click();
@@ -74,7 +75,7 @@ async function main() {
       const text = await page.locator('body').innerText();
       assert.ok(!/MAX-PC|192\.168\.|C:\\Users\\/i.test(text), 'Showcase must not expose machine data');
     }
-    console.log('Captured four showcase screenshots with synthetic content.');
+    console.log('Captured five showcase screenshots with synthetic content.');
   } finally {
     await browser?.close();
     await app?.close();

@@ -12,24 +12,28 @@ Click any screenshot to open it at full size.
 
 <table>
   <tr>
+    <th>Pair in moments</th>
     <th>File transfers on Windows</th>
-    <th>Messages on Windows</th>
   </tr>
   <tr>
+    <td align="center" valign="top"><a href="docs/screenshots/phone-pairing.png"><img src="docs/screenshots/phone-pairing.png" alt="Scan a one-time QR code and choose a device name to pair the phone browser" height="320"></a></td>
     <td valign="top"><a href="docs/screenshots/desktop-transfers.png"><img src="docs/screenshots/desktop-transfers.png" alt="Lane Windows transfer history after receiving sample files from a phone" width="380"></a></td>
-    <td valign="top"><a href="docs/screenshots/desktop-messages.png"><img src="docs/screenshots/desktop-messages.png" alt="Lane Windows conversation with a paired phone" width="380"></a></td>
   </tr>
   <tr>
-    <th>Review files on your phone</th>
+    <th>Messages on Windows</th>
     <th>Messages on your phone</th>
   </tr>
   <tr>
-    <td align="center" valign="top"><a href="docs/screenshots/phone-file-review.png"><img src="docs/screenshots/phone-file-review.png" alt="Mobile file review with recipient selection and an explicit Send button" height="320"></a></td>
+    <td valign="top"><a href="docs/screenshots/desktop-messages.png"><img src="docs/screenshots/desktop-messages.png" alt="Lane Windows conversation with a paired phone" width="380"></a></td>
     <td align="center" valign="top"><a href="docs/screenshots/phone-messages.png"><img src="docs/screenshots/phone-messages.png" alt="Encrypted conversation in Lane’s mobile browser interface" height="320"></a></td>
+  </tr>
+  <tr><th colspan="2">Review files on your phone</th></tr>
+  <tr>
+    <td colspan="2" align="center" valign="top"><a href="docs/screenshots/phone-file-review.png"><img src="docs/screenshots/phone-file-review.png" alt="Mobile file review with recipient selection and an explicit Send button" height="320"></a></td>
   </tr>
 </table>
 
-Actual Lane 0.10.0 screens with sample content and generic device names. Mobile views use browser emulation; these images do not establish physical iPhone compatibility. [Screenshot details](docs/screenshots/README.md).
+Pair once by scanning a one-time desktop QR code, then name the phone. Actual Lane 0.10.0 screens with sample content and generic device names. Mobile views use browser emulation; these images do not establish physical iPhone compatibility. [Screenshot details](docs/screenshots/README.md).
 
 ## Quick start
 
