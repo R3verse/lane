@@ -2,7 +2,26 @@
 
 Coded by Max Jensen.
 
+A Windows app and mobile browser interface for local files and messages in both directions. All interface text is English. No account, cloud storage, telemetry, CDN or external transfer service is used at runtime.
+
 Source: [R3verse/lane](https://github.com/R3verse/lane). Download binaries are kept locally and are not committed to this repository.
+
+## A look inside Lane
+
+![Lane for Windows — encrypted conversation with a paired phone](docs/screenshots/desktop-messages.png)
+
+<table>
+  <tr>
+    <th>Review files before sending</th>
+    <th>Keep the conversation close</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="docs/screenshots/phone-file-review.png" alt="Mobile browser file review with an explicit Send button and recipient selection" width="320"></td>
+    <td valign="top"><img src="docs/screenshots/phone-messages.png" alt="Encrypted message from the Windows computer in Lane’s mobile browser interface" width="320"></td>
+  </tr>
+</table>
+
+Actual Lane 0.10.0 screens with sample content and generic device names. Mobile views use browser emulation; these images do not establish physical iPhone compatibility. [Screenshot details](docs/screenshots/README.md).
 
 ## Quick start
 
@@ -18,8 +37,6 @@ npm start
 Keep the computer and phone on the same trusted local network. In Lane, open **Settings → Secure connection → Set up a phone / browser**, verify and trust the certificate as described below, then open the HTTPS address and pair with a fresh QR/code. Select files, review the recipient and press **Send**. Keep Lane running and the phone page open until completion.
 
 See [Security](SECURITY.md), [Validation](VALIDATION.md), [Roadmap](ROADMAP.md) and [0.10 release notes](RELEASE-NOTES-0.10.md).
-
-A Windows app and mobile browser interface for local files and messages in both directions. All interface text is English. No account, cloud storage, telemetry, CDN or external transfer service is used at runtime.
 
 Version **0.10.0** adds named project destinations, one Devices view for paired and nearby participants, local conversation search, per-conversation mute, connection diagnostics, browser clipboard-file review and a Retry failed action. Search opens from the conversation header so messages keep their reading space. Existing pairings, certificates, messages and receiving settings are preserved. Reload every phone’s Lane page after updating.
 
